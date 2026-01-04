@@ -33,4 +33,4 @@ jobs:
         env:
           # This pulls your JSON key from GitHub Settings -> Secrets -> Actions
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-        run: python nse.py
+        run: python your_filename.py
