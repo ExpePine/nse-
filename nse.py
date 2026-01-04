@@ -2,22 +2,10 @@ import requests
 import zipfile
 import io
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 BASE_DIR = "data"
 os.makedirs(BASE_DIR, exist_ok=True)
-
-today = datetime.now()
-dd = today.strftime("%d")
-mm = today.strftime("%m")
-MMM = today.strftime("%b").upper()
-yyyy = today.strftime("%Y")
-
-BHAV_ZIP = f"cm{dd}{MMM}{yyyy}bhav.csv.zip"
-BHAV_URL = f"https://archives.nseindia.com/content/historical/EQUITIES/{yyyy}/{MMM}/{BHAV_ZIP}"
-
-DELIVERY_FILE = f"MTO_{dd}{mm}{yyyy}.csv"
-DELIVERY_URL = f"https://archives.nseindia.com/products/content/sec_bhavdata_full_{dd}{mm}{yyyy}.csv"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
@@ -27,27 +15,54 @@ HEADERS = {
 
 session = requests.Session()
 session.headers.update(HEADERS)
-
-# Mandatory NSE warm-up request
 session.get("https://www.nseindia.com", timeout=10)
 
-# -------- Bhavcopy --------
-print("Downloading Bhavcopy...")
-bhav = session.get(BHAV_URL, timeout=20)
-bhav.raise_for_status()
+def try_download(target_date):
+    dd = target_date.strftime("%d")
+    mm = target_date.strftime("%m")
+    MMM = target_date.strftime("%b").upper()
+    yyyy = target_date.strftime("%Y")
 
-with zipfile.ZipFile(io.BytesIO(bhav.content)) as z:
-    z.extractall(BASE_DIR)
+    bhav_zip = f"cm{dd}{MMM}{yyyy}bhav.csv.zip"
+    bhav_url = f"https://archives.nseindia.com/content/historical/EQUITIES/{yyyy}/{MMM}/{bhav_zip}"
 
-print("Bhavcopy saved")
+    delivery_file = f"MTO_{dd}{mm}{yyyy}.csv"
+    delivery_url = f"https://archives.nseindia.com/products/content/sec_bhavdata_full_{dd}{mm}{yyyy}.csv"
 
-# -------- Deliverable Data --------
-print("Downloading Deliverable Data...")
-delivery = session.get(DELIVERY_URL, timeout=20)
-delivery.raise_for_status()
+    print(f"Trying date: {target_date.date()}")
 
-with open(os.path.join(BASE_DIR, DELIVERY_FILE), "wb") as f:
-    f.write(delivery.content)
+    try:
+        bhav = session.get(bhav_url, timeout=15)
+        bhav.raise_for_status()
 
-print("Deliverable data saved")
-print("✅ DONE")
+        with zipfile.ZipFile(io.BytesIO(bhav.content)) as z:
+            z.extractall(BASE_DIR)
+
+        delivery = session.get(delivery_url, timeout=15)
+        delivery.raise_for_status()
+
+        with open(os.path.join(BASE_DIR, delivery_file), "wb") as f:
+            f.write(delivery.content)
+
+        print("✅ SUCCESS:", target_date.date())
+        return True
+
+    except Exception as e:
+        print("❌ Failed:", e)
+        return False
+
+
+# 🔁 Try today and fallback up to last 7 days
+today = datetime.now()
+
+for i in range(7):
+    date_to_try = today - timedelta(days=i)
+
+    # Skip weekends early
+    if date_to_try.weekday() >= 5:
+        continue
+
+    if try_download(date_to_try):
+        break
+else:
+    raise Exception("❌ No NSE data available in last 7 days")
