@@ -1,27 +1,34 @@
-name: NSE Daily Scraper
+name: NSE Daily Download
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 13 * * *' # 6:30 PM IST
+    - cron: "15 13 * * 1-5"   # 6:45 PM IST (Mon–Fri)
 
 jobs:
-  run-scraper:
+  download:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
-      - name: Checkout code
+      - name: ⬇️ Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies
+      - name: 📦 Install Dependencies
         run: |
-          pip install pandas selenium webdriver-manager gspread google-auth
+          pip install -r requirements.txt
 
-      - name: Run Script
-        env:
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-        run: python nse.py
+      - name: ▶️ Run Downloader
+        run: |
+          python nse.py
+
+      - name: 📤 Upload Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: nse-data
+          path: data/
