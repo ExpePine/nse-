@@ -1,36 +1,31 @@
-name: NSE Equity → Google Sheet (Sheet 10)
+name: NSE Data Scraper
 
 on:
-  workflow_dispatch:   # manual run
   schedule:
-    - cron: "30 1 * * 1-5"   # Mon–Fri at 07:00 IST (01:30 UTC)
+    # Runs every day at 13:00 UTC (6:30 PM IST)
+    - cron: '0 13 * * *'
+  workflow_dispatch: # Allows you to run it manually from the "Actions" tab
 
 jobs:
-  run-script:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
 
     steps:
-      - name: ⬇️ Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: '3.10'
 
-      - name: 📦 Install dependencies
+      - name: Install Dependencies
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          pip install pandas selenium webdriver-manager gspread google-auth openpyxl
 
-      - name: 🌐 Install Chrome
-        run: |
-          sudo apt update
-          sudo apt install -y google-chrome-stable
-
-      - name: 🚀 Run NSE Script
+      - name: Run Scraper
         env:
+          # This pulls your credentials from GitHub Settings -> Secrets
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-        run: |
-          python nse.py
+        run: python nse.py
