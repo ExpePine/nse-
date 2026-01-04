@@ -43,20 +43,27 @@ credentials = Credentials.from_service_account_info(
 )
 
 gc = gspread.authorize(credentials)
-
-# ✅ OPEN BY NAME + SHEET NAME (SAFE)
 worksheet = gc.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
 
-# ========== CHROME SETUP ==========
+# ========== CHROME SETUP (GITHUB ACTIONS SAFE) ==========
 chrome_options = Options()
+
+# REQUIRED FOR CI (THIS FIXES YOUR ERROR)
+chrome_options.add_argument("--headless=new")
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
+chrome_options.add_argument("--disable-gpu")
+chrome_options.add_argument("--window-size=1920,1080")
+
+# NSE-friendly
 chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-chrome_options.add_argument("--start-maximized")
 
 chrome_options.add_experimental_option(
     "prefs",
     {
         "download.default_directory": TEMP_DOWNLOAD_DIR,
-        "download.prompt_for_download": False
+        "download.prompt_for_download": False,
+        "directory_upgrade": True
     }
 )
 
@@ -88,7 +95,7 @@ def daterange(start, end):
 
 # ========== START ==========
 driver.get("https://www.nseindia.com/all-reports#cr_equity_archives")
-time.sleep(5)
+time.sleep(6)
 
 start = datetime.strptime(START_DATE, "%Y-%m-%d")
 end = datetime.strptime(END_DATE, "%Y-%m-%d")
@@ -101,14 +108,18 @@ for day in daterange(start, end):
     downloaded_file = None
 
     try:
-        date_input = wait.until(EC.presence_of_element_located((By.ID, "crDate")))
+        date_input = wait.until(
+            EC.presence_of_element_located((By.ID, "crDate"))
+        )
         driver.execute_script("arguments[0].value = '';", date_input)
         date_input.send_keys(date_str)
 
         driver.find_element(By.ID, "getData").click()
-        time.sleep(3)
+        time.sleep(4)
 
-        driver.find_element(By.XPATH, "//a[contains(@href,'xls')]").click()
+        driver.find_element(
+            By.XPATH, "//a[contains(@href,'xls')]"
+        ).click()
 
         downloaded_file = wait_for_download()
 
@@ -127,4 +138,4 @@ for day in daterange(start, end):
             print("🗑️ Deleted")
 
 driver.quit()
-print("🎯 COMPLETED — GITHUB READY")
+print("🎯 COMPLETED — ERROR RESOLVED")
