@@ -4,3 +4,4 @@ openpyxl
 webdriver-manager
 gspread
 google-auth
+requests
