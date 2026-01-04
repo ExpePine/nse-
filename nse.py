@@ -21,8 +21,8 @@ END_DATE = datetime.today().strftime("%Y-%m-%d")
 
 TEMP_DOWNLOAD_DIR = os.path.abspath("download")
 
-GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1skMw2i2UHk3wEY5FidUWKKNU4LUlWLjmX84BoDUfx7Q/edit"
-SHEET_INDEX = 9  # Sheet 10 (0-based)
+SPREADSHEET_NAME = "Tradingview Data Reel Experimental May"
+WORKSHEET_NAME = "Sheet10"
 
 REQUIRED_COLUMNS = ["NO_OF_TRADES", "DELIV_QTY"]
 # =========================================
@@ -43,8 +43,9 @@ credentials = Credentials.from_service_account_info(
 )
 
 gc = gspread.authorize(credentials)
-spreadsheet = gc.open_by_url(GOOGLE_SHEET_URL)
-worksheet = spreadsheet.get_worksheet(SHEET_INDEX)
+
+# ✅ OPEN BY NAME + SHEET NAME (SAFE)
+worksheet = gc.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
 
 # ========== CHROME SETUP ==========
 chrome_options = Options()
