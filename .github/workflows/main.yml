@@ -1,0 +1,36 @@
+name: NSE Equity → Google Sheet (Sheet 10)
+
+on:
+  workflow_dispatch:   # manual run
+  schedule:
+    - cron: "30 1 * * 1-5"   # Mon–Fri at 07:00 IST (01:30 UTC)
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🌐 Install Chrome
+        run: |
+          sudo apt update
+          sudo apt install -y google-chrome-stable
+
+      - name: 🚀 Run NSE Script
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          python nse_to_gsheet.py
