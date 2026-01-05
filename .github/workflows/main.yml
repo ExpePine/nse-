@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   workflow_dispatch:
   schedule:
-    - cron: '0 14 * * 1-5' # Runs Mon-Fri at 7:30 PM IST
+    - cron: '0 14 * * 1-5'
 
 permissions:
   contents: write
@@ -16,8 +16,6 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -35,14 +33,16 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         
-        # Add only if file exists, or add the entire data folder
-        git add data/max_volume_4months.csv || echo "File not found, skipping add"
+        # Ensure the directory exists in the runner environment
+        mkdir -p data
         
-        # Check if there are changes before committing
+        # Add everything, including newly created folders/files
+        git add data/max_volume_4months.csv
+        
+        # Only commit if the file actually changed or was created
         if git diff --cached --quiet; then
-          echo "No changes to commit"
+          echo "No changes in data. Skipping push."
         else
-          git pull --rebase origin main
           git commit -m "Auto-update: 4-month max volume report"
           git push origin main
         fi
