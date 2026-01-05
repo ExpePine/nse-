@@ -3,7 +3,11 @@ name: NSE Data Downloader
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # Allows you to run it manually
+  workflow_dispatch:
+
+# Add this block to ensure the bot has permission
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -26,8 +30,8 @@ jobs:
 
     - name: Commit and Push CSV files
       run: |
-        git config --global user.name "GitHub Action"
-        git config --global user.email "action@github.com"
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git add data/*.csv
         git commit -m "Auto-downloaded NSE data" || echo "No changes to commit"
         git push
