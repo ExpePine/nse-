@@ -14,7 +14,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: wheels/checkout@v3
+      uses: actions/checkout@v4  # Fixed: changed wheels/checkout to actions/checkout
 
     - name: Set up Python
       uses: actions/setup-python@v4
