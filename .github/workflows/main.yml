@@ -1,74 +1,48 @@
-import requests
-import os
-import time
-import pandas as pd
-from datetime import datetime, timedelta
-from io import StringIO
+name: NSE 4-Month Max Volume Tracker
 
-def update_nse_report():
-    base_url = "https://nsearchives.nseindia.com/products/content/sec_bhavdata_full_{}.csv"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    
-    # Ensure directory exists
-    save_dir = "data"
-    os.makedirs(save_dir, exist_ok=True)
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 14 * * 1-5' # Runs Mon-Fri at 7:30 PM IST
 
-    # 1. SET THE DYNAMIC RANGE (4 Months to Yesterday)
-    end_date = datetime.now() - timedelta(days=1)
-    start_date = end_date - timedelta(days=120)
+permissions:
+  contents: write
 
-    print(f"Generating combined report from {start_date.date()} to {end_date.date()}")
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
-    all_data = []
-    current_date = start_date
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
 
-    while current_date <= end_date:
-        if current_date.weekday() < 5: # Only Weekdays
-            date_str = current_date.strftime("%d%m%Y")
-            url = base_url.format(date_str)
-            try:
-                response = requests.get(url, headers=headers, timeout=10)
-                if response.status_code == 200:
-                    df = pd.read_csv(StringIO(response.text))
-                    df.columns = df.columns.str.strip() 
-                    if 'SERIES' in df.columns:
-                        df = df[df['SERIES'].str.strip() == 'EQ']
-                    all_data.append(df)
-                    print(f"✅ Added: {current_date.date()}")
-                else:
-                    print(f"❌ Skipped: {current_date.date()} (Holiday)")
-            except Exception as e:
-                print(f"⚠️ Error on {current_date.date()}: {e}")
+    - name: Install dependencies
+      run: pip install requests pandas
+
+    - name: Run Script
+      run: python nse.py
+
+    - name: Push results
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
         
-        current_date += timedelta(days=1)
-        time.sleep(0.5)
-
-    if all_data:
-        combined_df = pd.concat(all_data, ignore_index=True)
+        # Add only if file exists, or add the entire data folder
+        git add data/max_volume_4months.csv || echo "File not found, skipping add"
         
-        # Identify Columns
-        date_col = next((c for c in ['DATE1', 'DATE', 'TradDt'] if c in combined_df.columns), None)
-        vol_col = next((c for c in ['TOTTRDQTY', 'TtlTradgVol'] if c in combined_df.columns), None)
-
-        if not vol_col or not date_col:
-            print("Error: Could not find required columns.")
-            return
-
-        combined_df[date_col] = pd.to_datetime(combined_df[date_col])
-        combined_df[vol_col] = pd.to_numeric(combined_df[vol_col], errors='coerce')
-
-        # Find Max Volume
-        max_report = combined_df.sort_values(vol_col, ascending=False).drop_duplicates('SYMBOL')
-        
-        final_report = max_report[['SYMBOL', vol_col, date_col, 'CLOSE']].copy()
-        final_report.rename(columns={vol_col: 'MAX_VOLUME', date_col: 'DATE_OF_MAX'}, inplace=True)
-
-        # SAVING WITH THE CORRECT FILENAME
-        output_path = os.path.join(save_dir, "max_volume_4months.csv")
-        final_report.to_csv(output_path, index=False)
-        print(f"\n✅ Success! Saved to: {output_path}")
-    else:
-        print("No data found to process.")
-
-if __name__ == "__main__":
-    update_nse_report()
+        # Check if there are changes before committing
+        if git diff --cached --quiet; then
+          echo "No changes to commit"
+        else
+          git pull --rebase origin main
+          git commit -m "Auto-update: 4-month max volume report"
+          git push origin main
+        fi
