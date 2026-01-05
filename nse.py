@@ -9,11 +9,9 @@ def update_nse_report():
     base_url = "https://nsearchives.nseindia.com/products/content/sec_bhavdata_full_{}.csv"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     
-    # ENSURE DIRECTORY EXISTS
+    # Ensure directory exists
     save_dir = "data"
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-        print(f"Created directory: {save_dir}")
+    os.makedirs(save_dir, exist_ok=True)
 
     # 1. SET THE DYNAMIC RANGE (4 Months to Yesterday)
     end_date = datetime.now() - timedelta(days=1)
@@ -28,20 +26,17 @@ def update_nse_report():
         if current_date.weekday() < 5: # Only Weekdays
             date_str = current_date.strftime("%d%m%Y")
             url = base_url.format(date_str)
-            
             try:
                 response = requests.get(url, headers=headers, timeout=10)
                 if response.status_code == 200:
                     df = pd.read_csv(StringIO(response.text))
                     df.columns = df.columns.str.strip() 
-                    
                     if 'SERIES' in df.columns:
                         df = df[df['SERIES'].str.strip() == 'EQ']
-                    
                     all_data.append(df)
                     print(f"✅ Added: {current_date.date()}")
                 else:
-                    print(f"❌ Skipped: {current_date.date()} (Holiday/No Data)")
+                    print(f"❌ Skipped: {current_date.date()} (Holiday)")
             except Exception as e:
                 print(f"⚠️ Error on {current_date.date()}: {e}")
         
@@ -56,7 +51,7 @@ def update_nse_report():
         vol_col = next((c for c in ['TOTTRDQTY', 'TtlTradgVol'] if c in combined_df.columns), None)
 
         if not vol_col or not date_col:
-            print("Error: Required columns not found.")
+            print("Error: Could not find required columns.")
             return
 
         combined_df[date_col] = pd.to_datetime(combined_df[date_col])
@@ -68,7 +63,7 @@ def update_nse_report():
         final_report = max_report[['SYMBOL', vol_col, date_col, 'CLOSE']].copy()
         final_report.rename(columns={vol_col: 'MAX_VOLUME', date_col: 'DATE_OF_MAX'}, inplace=True)
 
-        # MATCHING FILENAME TO YOUR ERROR MESSAGE
+        # SAVING WITH THE CORRECT FILENAME
         output_path = os.path.join(save_dir, "max_volume_4months.csv")
         final_report.to_csv(output_path, index=False)
         print(f"\n✅ Success! Saved to: {output_path}")
