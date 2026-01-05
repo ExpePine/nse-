@@ -1,34 +1,33 @@
-name: NSE Daily Download
+name: NSE Data Downloader
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: "15 13 * * 1-5"   # 6:45 PM IST (Mon–Fri)
+  push:
+    branches: [ main ]
+  workflow_dispatch: # Allows you to run it manually
 
 jobs:
-  download:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
 
     steps:
-      - name: ⬇️ Checkout
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: 🐍 Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
 
-      - name: 📦 Install Dependencies
-        run: |
-          pip install -r requirements.txt
+    - name: Install dependencies
+      run: pip install requests
 
-      - name: ▶️ Run Downloader
-        run: |
-          python nse.py
+    - name: Run Downloader
+      run: python nse.py
 
-      - name: 📤 Upload Data
-        uses: actions/upload-artifact@v4
-        with:
-          name: nse-data
-          path: data/
+    - name: Commit and Push CSV files
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        git add data/*.csv
+        git commit -m "Auto-downloaded NSE data" || echo "No changes to commit"
+        git push
