@@ -1,11 +1,9 @@
-name: NSE 4-Month Max Volume Tracker
+name: NSE Data Downloader
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
-  schedule:
-    - cron: '0 14 * * 1-5' # Mon-Fri at 7:30 PM IST
 
 permissions:
   contents: write
@@ -13,11 +11,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0 # Full history fetch karta hai taaki push error na aaye
+      uses: wheels/checkout@v3
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -25,32 +22,16 @@ jobs:
         python-version: '3.9'
 
     - name: Install dependencies
-      run: pip install requests pandas
+      run: |
+        pip install requests pandas
 
-    - name: Run Script
+    - name: Run Downloader
       run: python nse.py
 
-    - name: Push results
+    - name: Commit and Push CSV files
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        
-        # 1. Folder create karo agar nahi hai (Safety check)
-        mkdir -p data
-        
-        # 2. Check karo agar file script ne banayi hai
-        if [ -f data/max_volume_4months.csv ]; then
-          git add data/max_volume_4months.csv
-          
-          # 3. Sirf tabhi commit karo agar file mein koi change hai
-          if git diff --staged --quiet; then
-            echo "No changes in data. Skipping push."
-          else
-            git commit -m "Auto-update: 4-month max volume report"
-            git pull --rebase origin main # Merge conflicts se bachne ke liye
-            git push origin main
-          fi
-        else
-          echo "Error: File data/max_volume_4months.csv was not created by the script."
-          exit 1
-        fi
+        git add data/*.csv
+        git commit -m "Auto-downloaded last 4 months of NSE data" || echo "No changes to commit"
+        git push
