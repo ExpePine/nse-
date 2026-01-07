@@ -7,52 +7,63 @@ from io import StringIO
 
 def download_and_merge():
     base_url = "https://nsearchives.nseindia.com/products/content/sec_bhavdata_full_{}.csv"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate"
+    }
+
     save_dir = "data"
     os.makedirs(save_dir, exist_ok=True)
 
-    # Calculate dates: Today and 120 days ago (approx 4 months)
+    # ===== DATE RANGE: JANUARY 1 → TODAY =====
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=120)
+    start_date = datetime(end_date.year, 1, 1)
 
-    print(f"Fetching data from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+    print(f"Fetching NSE data from {start_date.strftime('%d-%b-%Y')} to {end_date.strftime('%d-%b-%Y')}\n")
 
     all_dataframes = []
     current_date = start_date
 
     while current_date <= end_date:
-        # Check if it's a weekend (Saturday=5, Sunday=6) - No data on weekends
+        # Skip weekends (Sat=5, Sun=6)
         if current_date.weekday() < 5:
-            date_formatted = current_date.strftime("%d%m%Y")
-            url = base_url.format(date_formatted)
-            
-            print(f"Fetching: {current_date.strftime('%Y-%m-%d')}...", end=" ")
+            date_str = current_date.strftime("%d%m%Y")
+            url = base_url.format(date_str)
+
+            print(f"📥 {current_date.strftime('%d-%b-%Y')}", end=" → ")
+
             try:
                 response = requests.get(url, headers=headers, timeout=15)
-                if response.status_code == 200:
+
+                if response.status_code == 200 and len(response.text) > 100:
                     df = pd.read_csv(StringIO(response.text))
                     all_dataframes.append(df)
                     print("✅")
                 else:
-                    print("❌ (No File/Holiday)")
-            except Exception as e:
-                print(f"Error: {e}")
-        
-        current_date += timedelta(days=1)
-        time.sleep(1) # Small delay to avoid getting blocked
+                    print("❌ Holiday / No file")
 
-    # Combine all data if we found any
+            except Exception as e:
+                print(f"⚠️ Error: {e}")
+
+            time.sleep(1)  # Avoid blocking
+
+        current_date += timedelta(days=1)
+
+    # ===== MERGE & SAVE =====
     if all_dataframes:
         master_df = pd.concat(all_dataframes, ignore_index=True)
-        # Remove leading/trailing spaces from column names
         master_df.columns = master_df.columns.str.strip()
-        
-        output_file = f"{save_dir}/combined_bhavcopy.csv"
+
+        output_file = os.path.join(save_dir, "combined_bhavcopy_jan_to_today.csv")
         master_df.to_csv(output_file, index=False)
-        print(f"\nSuccess! Combined file saved at: {output_file}")
+
+        print(f"\n🎉 DONE! File saved at:\n{output_file}")
+        print(f"📊 Total rows: {len(master_df)}")
+
     else:
-        print("\nNo data was downloaded to combine.")
+        print("\n❌ No data downloaded.")
 
 if __name__ == "__main__":
     download_and_merge()
