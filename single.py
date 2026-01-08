@@ -19,42 +19,43 @@ def get_best_available_data():
     session = requests.Session()
     session.get("https://www.nseindia.com", headers=headers, timeout=10)
 
-    # Calculate dates
-    today_dt = datetime.now()
-    yesterday_str = (today_dt - timedelta(days=1)).strftime("%d%m%Y")
-    today_str = today_dt.strftime("%d%m%Y")
+    now_utc = datetime.utcnow()
+    # IST is UTC + 5:30. 6:30 PM IST is 1:00 PM UTC.
+    yesterday_str = (now_utc - timedelta(days=1)).strftime("%d%m%Y")
+    today_str = now_utc.strftime("%d%m%Y")
 
-    # 1. Start with Yesterday (Always try yesterday first as per your request)
-    print(f"🔍 Checking Yesterday's data ({yesterday_str})...")
-    resp_yest = session.get(NSE_URL.format(yesterday_str), headers=headers)
-    
     best_df = None
     final_date = yesterday_str
 
+    # 1. Start with Yesterday (as requested)
+    print(f"🔍 Checking Yesterday's data ({yesterday_str})...")
+    resp_yest = session.get(NSE_URL.format(yesterday_str), headers=headers)
+    
     if resp_yest.status_code == 200:
         print(f"✅ Yesterday's data found.")
         best_df = pd.read_csv(StringIO(resp_yest.text))
     else:
-        print(f"⚠️ Yesterday ({yesterday_str}) not available. Might be a holiday.")
+        print(f"⚠️ Yesterday not available. Checking Today directly...")
 
-    # 2. Check Today only if it's after 6:00 PM IST (12:30 PM UTC)
-    # GitHub Actions typically use UTC time.
-    if today_dt.hour >= 13: # 1:00 PM UTC is 6:30 PM IST
-        print(f"🕒 It's past 6 PM IST. Checking Today's data ({today_str})...")
+    # 2. Check Today only if it's after 6:30 PM IST (13:00 UTC)
+    if now_utc.hour >= 13:
+        print(f"🕒 Past 6:30 PM IST. Checking Today's data ({today_str})...")
         resp_today = session.get(NSE_URL.format(today_str), headers=headers)
         if resp_today.status_code == 200:
-            print(f"⭐ Today's data ({today_str}) is already out! Upgrading...")
+            print(f"⭐ Today's data ({today_str}) is ready! Using it.")
             best_df = pd.read_csv(StringIO(resp_today.text))
             final_date = today_str
-        else:
-            print(f"ℹ️ Today's data ({today_str}) not yet uploaded by NSE.")
 
     if best_df is not None:
         best_df.columns = best_df.columns.str.strip()
+        # FIX FOR THE DASH '-' ERROR:
+        # Convert columns to numeric, forcing errors like '-' to NaN, then fill with 0
+        best_df['NO_OF_TRADES'] = pd.to_numeric(best_df['NO_OF_TRADES'], errors='coerce').fillna(0).astype(int)
+        best_df['DELIV_QTY'] = pd.to_numeric(best_df['DELIV_QTY'], errors='coerce').fillna(0).astype(int)
+        
     return best_df, final_date
 
 def update_process():
-    # Authorize Google Sheets
     try:
         gc = gspread.service_account(filename="service_account.json")
         sh = gc.open(SHEET_NAME)
@@ -63,11 +64,12 @@ def update_process():
         print(f"❌ Auth Error: {e}")
         return
 
-    df_sheet = pd.DataFrame(worksheet.get_all_records())
+    records = worksheet.get_all_records()
+    df_sheet = pd.DataFrame(records)
     bhav_df, final_date = get_best_available_data()
     
     if bhav_df is None:
-        print("❌ No valid data found for Yesterday or Today.")
+        print("❌ No data found.")
         return
 
     final_rows = []
@@ -93,15 +95,12 @@ def update_process():
 
         final_rows.append([symbol, m_trd, m_del, dt_trd, dt_del] + curr_vals)
 
-    # Update Sheet and Clean Up
     worksheet.update('A2', final_rows)
-    print(f"🎉 Success! Sheet updated using {final_date} data.")
+    print(f"🎉 Updated Sheet using {final_date} data.")
     
-    # Force delete any downloaded CSVs in the workspace
-    for file in os.listdir():
-        if file.endswith(".csv") and "bhavdata" in file:
-            os.remove(file)
-            print(f"🗑️ Deleted temporary file: {file}")
+    # Cleanup: Delete any CSV files
+    for f in os.listdir():
+        if f.endswith(".csv"): os.remove(f)
 
 if __name__ == "__main__":
     update_process()
