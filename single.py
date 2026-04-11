@@ -68,7 +68,7 @@ def get_best_available_data():
         
         # Format Date to 'D-M-YYYY'
         best_df['DATE1'] = pd.to_datetime(best_df['DATE1'], errors='coerce')
-        best_df['DATE1'] = best_df['DATE1'].dt.strftime('%#d-%#m-%Y') 
+        best_df['DATE1'] = best_df['DATE1'].dt.strftime('%m/%d/%Y') 
         
     return best_df, final_date
 
