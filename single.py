@@ -11,7 +11,7 @@ SHEET_NAME = "MV2 for SQL"
 WORKSHEET_NAME = "Sheet8"
 NSE_URL = "https://nsearchives.nseindia.com/products/content/sec_bhavdata_full_{}.csv"
 
-# Required Headers for your logic
+# Required Headers
 REQUIRED_HEADERS = [
     "SYMBOL", "Max_NO_OF_TRADES", "Max_DELIV_QTY", 
     "DATE_MAX_TRADES", "DATE_MAX_DELIV", 
@@ -51,7 +51,7 @@ def get_best_available_data():
         print(f"✅ Yesterday's data found.")
         best_df = pd.read_csv(StringIO(resp_yest.text))
     
-    # 2. Check Today only if past 1:00 PM UTC (6:30 PM IST)
+    # 2. Check Today only if past 1:00 PM UTC
     if now_utc.hour >= 13:
         print(f"🕒 Checking Today's data ({today_str})...")
         resp_today = session.get(NSE_URL.format(today_str), headers=headers)
@@ -62,21 +62,17 @@ def get_best_available_data():
 
     if best_df is not None:
         best_df.columns = best_df.columns.str.strip()
-        # Clean numeric data
         best_df['NO_OF_TRADES'] = pd.to_numeric(best_df['NO_OF_TRADES'], errors='coerce').fillna(0).astype(int)
         best_df['DELIV_QTY'] = pd.to_numeric(best_df['DELIV_QTY'], errors='coerce').fillna(0).astype(int)
         
-        # --- FIX: Explicitly format to American MM/DD/YYYY ---
-        best_df['DATE1'] = pd.to_datetime(best_df['DATE1'], errors='coerce')
-        best_df['DATE1'] = best_df['DATE1'].dt.strftime('%m/%d/%Y') 
+        # Format Date to American MM/DD/YYYY
+        best_df['DATE1'] = pd.to_datetime(best_df['DATE1'], errors='coerce').dt.strftime('%m/%d/%Y') 
         
     return best_df, final_date
 
 def update_process():
-    # 1. Delete old files before starting
     cleanup_old_files()
 
-    # 2. Authorize and Setup Worksheet
     try:
         gc = gspread.service_account(filename="service_account.json")
         sh = gc.open(SHEET_NAME)
@@ -85,14 +81,12 @@ def update_process():
         print(f"❌ Connection Error: {e}")
         return
 
-    # 3. Check and Add Headers if missing
     existing_headers = worksheet.row_values(1)
     if not existing_headers or existing_headers[0] != "SYMBOL":
-        print("📝 Headers missing or incorrect. Adding them now...")
+        print("📝 Headers missing. Adding them now...")
         worksheet.insert_row(REQUIRED_HEADERS, 1)
-        time.sleep(1) 
+        time.sleep(1)
 
-    # 4. Read Sheet Data
     records = worksheet.get_all_records()
     df_sheet = pd.DataFrame(records)
     
@@ -100,50 +94,52 @@ def update_process():
         print("ℹ️ Sheet is empty. Please add symbols in Column A.")
         return
 
-    # 5. Get NSE Data
     bhav_df, final_date = get_best_available_data()
     if bhav_df is None:
-        print("❌ No NSE data available for download.")
+        print("❌ No NSE data available.")
         return
 
-    # 6. Process Logic
     final_rows = []
     for _, row in df_sheet.iterrows():
         symbol = str(row['SYMBOL']).strip()
         stock_data = bhav_df[bhav_df['SYMBOL'] == symbol]
         
-        # Ensure we have numeric values for comparison
+        # Get current Max values from Column B and C
         try:
             m_trd = int(float(row.get('Max_NO_OF_TRADES', 0) or 0))
             m_del = int(float(row.get('Max_DELIV_QTY', 0) or 0))
         except:
             m_trd, m_del = 0, 0
             
+        # Get current Max dates from Column D and E
         dt_trd = str(row.get('DATE_MAX_TRADES', ''))
         dt_del = str(row.get('DATE_MAX_DELIV', ''))
 
         if not stock_data.empty:
             c_trd = int(stock_data.iloc[0]['NO_OF_TRADES'])
             c_del = int(stock_data.iloc[0]['DELIV_QTY'])
-            c_dt = str(stock_data.iloc[0]['DATE1']) # This is already MM/DD/YYYY from step 5
+            c_dt = str(stock_data.iloc[0]['DATE1']) # This is MM/DD/YYYY
 
-            # Compare and update Max + update the date string
+            # Update Logic for Column D (Max Trades Date)
             if c_trd > m_trd: 
                 m_trd = c_trd
-                dt_trd = c_dt
+                dt_trd = c_dt # Stores current American date as new max
+            
+            # Update Logic for Column E (Max Delivery Date)
             if c_del > m_del: 
                 m_del = c_del
-                dt_del = c_dt
+                dt_del = c_dt # Stores current American date as new max
                 
             curr_vals = [c_trd, c_del, c_dt]
         else:
             curr_vals = [0, 0, "No Trade"]
 
+        # Final list mapping to: SYMBOL, Max_T, Max_D, DATE_MAX_T, DATE_MAX_D, CURR_T, CURR_D, CURR_DT
         final_rows.append([symbol, m_trd, m_del, dt_trd, dt_del] + curr_vals)
 
-    # 7. Update Sheet and Final Cleanup
+    # Batch Update Sheet
     worksheet.update('A2', final_rows)
-    print(f"🎉 Success! Records updated with American Date format in {WORKSHEET_NAME}.")
+    print(f"🎉 Success! Column D & E now updated in American Format (MM/DD/YYYY).")
     cleanup_old_files()
 
 if __name__ == "__main__":
