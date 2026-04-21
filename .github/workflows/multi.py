@@ -1,0 +1,30 @@
+name: NSE Max Data Update
+
+on:
+  schedule:
+    - cron: '0 13 * * 1-5' # Runs at 6:30 PM IST, Mon-Fri
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: pip install pandas requests gspread google-auth
+
+      - name: Run Update Script
+        env:
+          GOOGLE_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          echo "$GOOGLE_JSON" > service_account.json
+          python multi.py
+          rm -f service_account.json
+          rm -f *.csv
