@@ -1,4 +1,4 @@
-```python
+
 import requests
 import pandas as pd
 import gspread
@@ -314,4 +314,4 @@ def update_process():
 
 if __name__ == "__main__":
     update_process()
-```
+
