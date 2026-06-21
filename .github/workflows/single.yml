@@ -1,4 +1,4 @@
-name: NSE Max Data Update
+name: NSE Max Data Update Single
 
 on:
   schedule:
